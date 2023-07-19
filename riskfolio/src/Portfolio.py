@@ -158,6 +158,12 @@ class Portfolio(object):
     upperuci : float, optional
         Constraint on max level of ulcer index (UCI) of
         uncompounded cumulative returns. The default is None.
+
+    dist_assumptions : string, optional
+        Structural assumptions on the distriibution of the returns,
+        "sym" for symmetric,
+        "symlinuni" for symmetric linear unimodal,
+        "gauss" for Gaussians and None for no assumptions.
     """
 
     def __init__(
@@ -210,6 +216,14 @@ class Portfolio(object):
         upperEDaR=None,
         upperRLDaR=None,
         upperuci=None,
+
+        lowerrobret=None,
+        upperrobvariance=None,
+        upperrobmeandev=None,
+        upperrobVaR=None,
+        upperrobCVaR=None,
+
+        dist_assumptions=None,
     ):
 
         # Optimization Models Options
@@ -258,10 +272,18 @@ class Portfolio(object):
         self.upperRLDaR = upperRLDaR
         self.upperuci = upperuci
 
+        self.lowerrobret = lowerrobret
+        self.upperrobvariance = upperrobvariance
+        self.upperrobmeandev = upperrobmeandev
+        self.upperrobVaR = upperrobVaR
+        self.upperrobCVaR = upperrobCVaR
+
         self.allowTO = allowTO
         self.turnover = turnover
         self.allowTE = allowTE
         self.TE = TE
+
+        self.dist_assumptions = dist_assumptions
 
         # Inputs of Optimization Models
 
@@ -1173,7 +1195,7 @@ class Portfolio(object):
         self.k_sigma = k_sigma
 
     def optimization(
-        self, model="Classic", rm="MV", obj="Sharpe", kelly=False, rf=0, l=2, hist=True
+        self, model="Classic", rm="MV", obj="Sharpe", kelly=False, rf=0, l=2, hist=True, radius=0
     ):
         r"""
         This method that calculates the optimal portfolio according to the
@@ -1233,6 +1255,8 @@ class Portfolio(object):
             - 'EDaR': Entropic Drawdown at Risk of uncompounded cumulative returns.
             - 'RLDaR': Relativistic Drawdown at Risk of uncompounded cumulative returns.
             - 'UCI': Ulcer Index of uncompounded cumulative returns.
+            - 'robvariance': robust variance
+            - '
 
         obj : str can be {'MinRisk', 'Utility', 'Sharpe' or 'MaxRet'}.
             Objective function of the optimization model.
@@ -1246,8 +1270,8 @@ class Portfolio(object):
         kelly : str, optional
             Method used to calculate mean return. Possible values are False for
             arithmetic mean return, "approx" for approximate mean logarithmic
-            return using first and second moment and "exact" for mean logarithmic
-            return. The default is False.
+            return using first and second moment, "exact" for mean logarithmic
+            return, "robmean" for robust mean return using the radius provided. The default is False.
         rf : float, optional
             Risk free rate, must be in the same period of assets returns.
             The default is 0.
@@ -1340,6 +1364,10 @@ class Portfolio(object):
                     ret = mu @ w - 0.5 * g**2
             elif kelly == False:
                 ret = mu @ w
+            elif kelly == "robmean":
+                if radius < 0:
+                    radius = 0
+                ret = mu @ w - np.sqrt(radius) * cp.norm(w, 2)
         else:
             ret = mu @ w
 
@@ -1651,6 +1679,60 @@ class Portfolio(object):
 
         risk22 = t4 + ln_k * s4 + cp.sum(psi4 + theta4)
 
+        # Robust variance
+
+        risk23 = g + np.sqrt(radius) * cp.norm(w, 2)
+
+        # Robust mean standard deviation utility
+
+        risk24 = l*g - mu @ w + radius * np.sqrt(1+l**2) * cp.norm(w, 2)
+
+        # Robust VaR
+
+        if self.dist_assumptions is None:
+            l_hat = (1-self.alpha)/self.alpha
+            l_hat = np.sqrt(l_hat)
+        elif self.dist_assumptions == "sym":
+            if self.alpha < 0.5:
+                l_hat = 1/(2*self.alpha)
+                l_hat = np.sqrt(l_hat)
+            else:
+                l_hat = 0
+        elif self.dist_assumptions == "symlinuni":
+            if self.alpha < 0.5:
+                l_hat = 2/(3* np.sqrt(2*self.alpha))
+            else:
+                l_hat = 0
+        elif self.dist_assumptions == "gauss":
+            l_hat = st.norm.ppf(1 - self.alpha)
+
+        risk25 = l_hat * g - mu @ w + radius * np.sqrt(1 + l_hat ** 2) * cp.norm(w, 2)
+
+        # Robust CVaR
+
+        if self.dist_assumptions is None:
+            l_hat = (1-self.alpha)/self.alpha
+            l_hat = np.sqrt(l_hat)
+        elif self.dist_assumptions == "sym":
+            if self.alpha < 0.5:
+                l_hat = 1/(2*self.alpha)
+                l_hat = np.sqrt(l_hat)
+            else:
+                l_hat = np.sqrt(1-self.alpha)/(np.sqrt(2)*self.alpha)
+        elif self.dist_assumptions == "symlinuni":
+            if self.alpha <= 1/3:
+                l_hat = 2/(3 * np.sqrt(self.alpha))
+            elif 1/3 < self.alpha <= 2/3:
+                l_hat = np.sqrt(3)*(1-self.alpha)
+            elif self.alpha >= 2 / 3:
+                l_hat = 2 * np.sqrt(1-self.alpha) / (3*self.alpha)
+        elif self.dist_assumptions == "gauss":
+            l_hat = st.norm.ppf(1 - self.alpha)
+            l_hat = - l_hat**2 / 2
+            l_hat = np.exp(l_hat) / (np.sqrt(2*np.pi) * self.alpha)
+
+        risk26 = l_hat * g - mu @ w + radius * np.sqrt(1 + l_hat ** 2) * cp.norm(w, 2)
+
         # Cardinal Boolean Variables
 
         if self.card is not None:
@@ -1768,6 +1850,10 @@ class Portfolio(object):
                 constraints += [ret >= self.lowerret * k]
             else:
                 constraints += [ret >= self.lowerret]
+
+        if self.lowerrobret is not None and kelly == "robmean":
+            if not obj == "Sharpe":
+                constraints += [ret >= self.lowerrobret]
 
         # Problem risk Constraints
 
@@ -1933,6 +2019,27 @@ class Portfolio(object):
             else:
                 constraints += [risk22 <= self.upperRLDaR]
             constraints += rldarconstraints
+
+        if self.upperrobvariance is not None:
+            if not obj == "Sharpe":
+                constraints += [risk23 <= self.upperrobvariance]
+            constraints += devconstraints
+
+        if self.upperrobmeandev is not None:
+            if not obj == "Sharpe":
+                constraints += [risk24 <= self.upperrobmeandev]
+            constraints += devconstraints
+
+        if self.upperrobVaR is not None:
+            if not obj == "Sharpe":
+                constraints += [risk25 <= self.upperrobVaR]
+            constraints += devconstraints
+
+        if self.upperrobCVaR is not None:
+            if not obj == "Sharpe":
+                constraints += [risk26 <= self.upperrobCVaR]
+            constraints += devconstraints
+
         # Defining risk function
 
         if rm == "MV":
@@ -2037,6 +2144,19 @@ class Portfolio(object):
             drawdown = True
             if self.upperRLDaR is None:
                 constraints += rldarconstraints
+        elif rm == "robvariance":
+            risk = risk23
+            constraints += devconstraints
+        elif rm == "robmeandev":
+            risk = risk24
+            constraints += devconstraints
+        elif rm == "robVaR":
+            risk = risk25
+            constraints += devconstraints
+        elif rm == "robCVaR":
+            risk = risk26
+            constraints += devconstraints
+
 
         if madmodel == True:
             constraints += madconstraints
