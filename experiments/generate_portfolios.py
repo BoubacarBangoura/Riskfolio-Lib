@@ -102,5 +102,5 @@ if __name__ == "__main__":
                 performance[(_strategy, _estimation_method)] = (total_perf(result, yearly_returns), yearly_perf(result, yearly_returns).var())
 
     save_pickle(portfolios, os.path.join(paths.PORTFOLIOS, 'portfolios1'))
-    save_pickle(performance, os.path.join(paths.PORTFOLIOS, 'performance1'))
+    # save_pickle(performance, os.path.join(paths.PORTFOLIOS, 'performance1'))
 
