@@ -1256,7 +1256,10 @@ class Portfolio(object):
             - 'RLDaR': Relativistic Drawdown at Risk of uncompounded cumulative returns.
             - 'UCI': Ulcer Index of uncompounded cumulative returns.
             - 'robvariance': robust variance
-            - '
+            - 'robmeandev'
+            - 'robVaR'
+            - 'robCVaR'
+            - 'variance'
 
         obj : str can be {'MinRisk', 'Utility', 'Sharpe' or 'MaxRet'}.
             Objective function of the optimization model.
@@ -2156,7 +2159,9 @@ class Portfolio(object):
         elif rm == "robCVaR":
             risk = risk26
             constraints += devconstraints
-
+        elif rm == "variance":
+            risk = g
+            constraints += devconstraints
 
         if madmodel == True:
             constraints += madconstraints
