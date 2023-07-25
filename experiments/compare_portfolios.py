@@ -20,43 +20,9 @@ if __name__ == "__main__":
     yearly_returns = calendar_year_returns(prices)
     yearly_returns = yearly_returns.drop(yearly_returns.index[0])
 
+    # load generated portfolios and corresponding performance
     portfolios = load_pickle(os.path.join(paths.PORTFOLIOS, 'portfolios1'))
     performance = load_pickle(os.path.join(paths.PORTFOLIOS, 'performance1'))
-
-    # # labels and parameters
-    # strategies = ['MV', 'utility', 'CVaR', 'Blanchet', 'robutility', 'robVaR', 'robCVaR']
-    # strategies_rm = {'MV': 'MV', 'utility': 'MV', 'CVaR': 'CVaR', 'Blanchet': 'robvariance', 'robutility': 'robmeandev', 'robVaR': 'robVaR', 'robCVaR': 'robCVaR'}
-    # rob_strategies = ['Blanchet', 'robutility', 'robVaR', 'robCVaR']
-    # parameters_estimation = ['5_prev_years', '10_prev_years', 'mean_rev_5_years']
-    # radii = [0.01, 0.05, 0.1, 0.5, 1, 5, 10, 50, 100]
-    # _test_start = pd.to_datetime('2001-12-31')
-    #
-    # # get performance (actual return and variance) of the portfolios
-    # performance = {i: None for i in ['MV', 'utility', 'CVaR']}
-    # for i in performance:
-    #     performance[i] = {j: None for j in ['5_prev_years', '10_prev_years', 'mean_rev_5_years']}
-    #     for j in performance[i]:
-    #         performance[i][j] = {k: None for k in ['standard', 'radius 0.01', 'radius 0.05', 'radius 0.1', 'radius 0.5', 'radius 1', 'radius 5', 'radius 10', 'radius 50', 'radius 100']}
-    #         for k in performance[i][j]:
-    #             if i == 'MV':
-    #                 if k == 'standard':
-    #                     result = portfolios['MV'][j]
-    #                     print(result.index.size)
-    #                 else:
-    #                     result = portfolios['Blanchet'][j][float(k[7:])]
-    #             if i == 'utility':
-    #                 if k == 'standard':
-    #                     result = portfolios['utility'][j]
-    #                 else:
-    #                     result = portfolios['robutility'][j][float(k[7:])]
-    #             if i == 'CVaR':
-    #                 if k == 'standard':
-    #                     result = portfolios['CVaR'][j]
-    #                 else:
-    #                     result = portfolios['robCVaR'][j][float(k[7:])]
-    #             performance[i][j][k] = (yearly_perf(result, yearly_returns).var(), total_perf(portfolio=result, returns=yearly_returns))
-    #
-    # save_pickle(performance, os.path.join(paths.PORTFOLIOS, 'performance1'))
 
     # plot
     fig, axes = plt.subplots(nrows=3, ncols=3, figsize=(12, 9))

@@ -91,7 +91,6 @@ if __name__ == "__main__":
                     iteration += 1
                     result = compute_portfolios(returns=yearly_returns, test_start=_test_start, strategy=_strategy, strategy_rm=strategies_rm, estimation_method=_estimation_method, radius=_radius, lowerret=_lowerret)
                     portfolios[_strategy][_estimation_method][_radius] = result
-                    performance[(_strategy, _estimation_method, _radius)] = (total_perf(portfolio=result, returns=yearly_returns), yearly_perf(result, yearly_returns).var())
             else:
                 print(f'---------- iteration {iteration} ----------')
                 iteration += 1
@@ -99,8 +98,31 @@ if __name__ == "__main__":
                                             strategy_rm=strategies_rm, estimation_method=_estimation_method,
                                             lowerret=_lowerret)
                 portfolios[_strategy][_estimation_method] = result
-                performance[(_strategy, _estimation_method)] = (total_perf(result, yearly_returns), yearly_perf(result, yearly_returns).var())
-
     save_pickle(portfolios, os.path.join(paths.PORTFOLIOS, 'portfolios1'))
-    # save_pickle(performance, os.path.join(paths.PORTFOLIOS, 'performance1'))
 
+    # get performance (actual return and variance) of the portfolios
+    performance = {i: None for i in ['MV', 'utility', 'CVaR']}
+    for i in performance:
+        performance[i] = {j: None for j in ['5_prev_years', '10_prev_years', 'mean_rev_5_years']}
+        for j in performance[i]:
+            performance[i][j] = {k: None for k in ['standard', 'radius 0.01', 'radius 0.05', 'radius 0.1', 'radius 0.5', 'radius 1', 'radius 5', 'radius 10', 'radius 50', 'radius 100']}
+            for k in performance[i][j]:
+                if i == 'MV':
+                    if k == 'standard':
+                        result = portfolios['MV'][j]
+                        print(result.index.size)
+                    else:
+                        result = portfolios['Blanchet'][j][float(k[7:])]
+                if i == 'utility':
+                    if k == 'standard':
+                        result = portfolios['utility'][j]
+                    else:
+                        result = portfolios['robutility'][j][float(k[7:])]
+                if i == 'CVaR':
+                    if k == 'standard':
+                        result = portfolios['CVaR'][j]
+                    else:
+                        result = portfolios['robCVaR'][j][float(k[7:])]
+                performance[i][j][k] = (yearly_perf(result, yearly_returns).var(), total_perf(portfolio=result, returns=yearly_returns))
+
+    save_pickle(performance, os.path.join(paths.PORTFOLIOS, 'performance1'))
