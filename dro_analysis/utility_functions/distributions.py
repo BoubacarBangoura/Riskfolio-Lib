@@ -4,7 +4,7 @@ import shutil
 from collections import Counter
 import random
 
-from experiments import paths
+from dro_analysis import paths
 
 import numpy as np
 import scipy.stats as st

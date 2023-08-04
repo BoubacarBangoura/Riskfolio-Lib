@@ -4,10 +4,10 @@ import importlib
 
 import pandas as pd
 
-from experiments import constants
-from experiments import paths
-from experiments.financial_objects.Strategy import Strategy
-from experiments.utility_functions.utils import save_pickle
+from dro_analysis import constants
+from dro_analysis import paths
+from dro_analysis.financial_objects.Strategy import Strategy
+from dro_analysis.utility_functions.utils import save_pickle
 
 
 class Portfolios:
@@ -64,7 +64,7 @@ class Portfolios:
 if __name__ == "__main__":
     _name = 'lalala'
     w = 1
-    s = Strategy(train_choice='sliding', conditioning='none')
+    s = Strategy()
     p = Portfolios(weights=w, market_name='some_name', strategy=s, name=_name)
     p.save()
 

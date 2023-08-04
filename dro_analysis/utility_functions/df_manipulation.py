@@ -8,8 +8,8 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
-from experiments import paths
-from experiments.utility_functions.utils import load_market
+from dro_analysis import paths
+from dro_analysis.utility_functions.utils import load_market
 import riskfolio.src.ParamsEstimation as pe
 import riskfolio.src.AuxFunctions as af
 

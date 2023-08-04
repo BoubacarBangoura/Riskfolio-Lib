@@ -1,7 +1,7 @@
 import os
-from experiments import paths
-from experiments.utility_functions.df_manipulation import calendar_year_returns, compute_mu_cov, yearly_perf,  total_perf
-from experiments.utility_functions.utils import save_pickle, load_pickle
+from dro_analysis import paths
+from dro_analysis.utility_functions.df_manipulation import calendar_year_returns
+from dro_analysis.utility_functions.utils import save_pickle, load_pickle
 
 import matplotlib.pyplot as plt
 import numpy as np

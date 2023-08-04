@@ -1,4 +1,4 @@
-from experiments.financial_objects.Strategy import Strategy
+from dro_analysis.financial_objects.Strategy import Strategy
 
 TYPES = ['fixed return', 'fixed risk', 'only risk']
 ALGOS = [{'markowitz'}]
@@ -27,10 +27,10 @@ MARKET_PLOT_PARAMETERS = {'some_name': {'Money market US': {'color': 'blue', 'lw
 
 # initialize strategies
 MV = Strategy(opt_parameters={'model': 'Classic', 'rm': 'MV', 'obj': 'MinRisk', 'hist': True},
-              port_parameters={'lowerret': None},
+              port_parameters={'lowerret': 0.05},
               name='MV')
 robMV = Strategy(opt_parameters={'model': 'Classic', 'rm': 'robvariance', 'obj': 'MinRisk', 'hist': True, 'radius': 0},
-                 port_parameters={'lowerrobret': None},
+                 port_parameters={'lowerrobret': 0.05},
                  name='robMV')
 utility = Strategy(opt_parameters={'model': 'Classic', 'rm': 'MV', 'obj': 'Utility', 'rf': 0, 'l': 2, 'hist': True},
                    name='utility')

@@ -1,7 +1,7 @@
 from abc import abstractmethod
 
 import pandas as pd
-from experiments import constants
+from dro_analysis import constants
 
 
 class Strategy:

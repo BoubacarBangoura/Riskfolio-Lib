@@ -1,10 +1,10 @@
 import os
-from experiments import paths
-from experiments.utility_functions.df_manipulation import calendar_year_returns, compute_mu_cov, yearly_perf, total_perf
-from experiments.utility_functions.utils import save_pickle
-from experiments.constants import MV, robMV, utility, robutility, CVaR, robCVaR, robVaR
-from experiments.constants import prev_5_years, prev_10_years, mean_rev_5_years
-from experiments.financial_objects.Portfolios import Portfolios
+from dro_analysis import paths
+from dro_analysis.utility_functions.df_manipulation import calendar_year_returns, compute_mu_cov, yearly_perf, total_perf
+from dro_analysis.utility_functions.utils import save_pickle
+from dro_analysis.constants import MV, robMV, utility, robutility, CVaR, robCVaR, robVaR
+from dro_analysis.constants import prev_5_years, prev_10_years, mean_rev_5_years
+from dro_analysis.financial_objects.Portfolios import Portfolios
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -57,9 +57,6 @@ if __name__ == "__main__":
     radii = [0.01, 1]
     _test_start = pd.to_datetime('2001-12-31')
 
-    # best strategies
-    performance = {}
-
     # we create an empty dictionary of dictionaries where we store the portfolios for different strategies
     portfolios = {index: None for index in strategies}
     for index in portfolios:
@@ -67,7 +64,6 @@ if __name__ == "__main__":
         if index in ['robMV', 'robutility', 'robCVaR', 'robVaR']:
             for i in portfolios[index]:
                 portfolios[index][i] = {j: None for j in radii}
-    print(portfolios)
 
     # fill up the portfolios dictionary
     iteration = 1
