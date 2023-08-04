@@ -1,6 +1,6 @@
 import os
 from experiments import paths
-from experiments.utility_functions.df_manipulation import calendar_year_returns, mu_cov_prev_years, mu_mean_reversion, yearly_perf, total_perf
+from experiments.utility_functions.df_manipulation import calendar_year_returns, compute_mu_cov, yearly_perf, total_perf
 from experiments.utility_functions.utils import save_pickle
 
 import matplotlib.pyplot as plt
@@ -26,9 +26,9 @@ def compute_portfolios(returns, test_start, strategy, strategy_rm, estimation_me
         cut_returns = returns[returns.index < t]
         cut_returns = cut_returns[-int(years):]
         if estimation_method in ['5_prev_years', '10_prev_years']:
-            mu, cov = mu_cov_prev_years(returns, t, years)
+            mu, cov = compute_mu_cov(returns, t, False, years)
         else:
-            mu, cov = mu_mean_reversion(returns, t, years)
+            mu, cov = compute_mu_cov(returns, t, True, years)
 
         # create portfolio
         p = rp.Portfolio(returns=cut_returns)

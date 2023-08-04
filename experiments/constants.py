@@ -1,3 +1,5 @@
+from experiments.financial_objects.Strategy import Strategy
+
 TYPES = ['fixed return', 'fixed risk', 'only risk']
 ALGOS = [{'markowitz'}]
 RISK_MEASURES = ['Variance', 'VaR', 'CVaR', 'mean_cov', 'mean_std']
@@ -22,3 +24,26 @@ MARKET_PLOT_PARAMETERS = {'some_name': {'Money market US': {'color': 'blue', 'lw
                                         'Gold': {'color': 'black', 'lw': 1.5, 'label': 'Gold', 'mean': None, 'std_dev': None}},
                           'new_market': {'td': 'td'}
                           }
+
+# initialize strategies
+MV = Strategy(opt_parameters={'model': 'Classic', 'rm': 'MV', 'obj': 'MinRisk', 'hist': True},
+              port_parameters={'lowerret': None},
+              name='MV')
+robMV = Strategy(opt_parameters={'model': 'Classic', 'rm': 'robvariance', 'obj': 'MinRisk', 'hist': True, 'radius': 0},
+                 port_parameters={'lowerrobret': None},
+                 name='robMV')
+utility = Strategy(opt_parameters={'model': 'Classic', 'rm': 'MV', 'obj': 'Utility', 'rf': 0, 'l': 2, 'hist': True},
+                   name='utility')
+robutility = Strategy(opt_parameters={'model': 'Classic', 'rm': 'robmeandev', 'obj': 'MinRisk', 'l': 2, 'hist': True, 'radius': 0},
+                      name='robutility')
+CVaR = Strategy(opt_parameters={'model': 'Classic', 'rm': 'CVaR', 'obj': 'MinRisk', 'hist': True},
+                name='CVaR')
+robCVaR = Strategy(opt_parameters={'model': 'Classic', 'rm': 'robCVaR', 'obj': 'MinRisk', 'hist': True, 'radius': 0},
+                   name='CVaR')
+robVaR = Strategy(opt_parameters={'model': 'Classic', 'rm': 'robVaR', 'obj': 'MinRisk', 'hist': True, 'radius': 0},
+                  name='robVaR')
+
+# initialize parameter estimation methods
+prev_5_years = {'mean_reversion': False, 'years': 5}
+prev_10_years = {'mean_reversion': False, 'years': 10}
+mean_rev_5_years = {'mean_reversion': True, 'years': 5}

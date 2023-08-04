@@ -1,6 +1,6 @@
 import os
 from experiments import paths
-from experiments.utility_functions.df_manipulation import calendar_year_returns, mu_cov_prev_years, mu_mean_reversion, yearly_perf,  total_perf
+from experiments.utility_functions.df_manipulation import calendar_year_returns, compute_mu_cov, yearly_perf,  total_perf
 from experiments.utility_functions.utils import save_pickle, load_pickle
 
 import matplotlib.pyplot as plt
@@ -21,8 +21,12 @@ if __name__ == "__main__":
     yearly_returns = yearly_returns.drop(yearly_returns.index[0])
 
     # load generated portfolios and corresponding performance
-    portfolios = load_pickle(os.path.join(paths.PORTFOLIOS, 'portfolios1'))
-    performance = load_pickle(os.path.join(paths.PORTFOLIOS, 'performance1'))
+    # portfolios = load_pickle(os.path.join(paths.PORTFOLIOS, 'portfolios1'))
+    # performance = load_pickle(os.path.join(paths.PORTFOLIOS, 'performance1'))
+    # values = [10, 15, 20, 25, 30, 35, 40, 45, 50]
+    portfolios = load_pickle(os.path.join(paths.PORTFOLIOS, 'testos_portfolios'))
+    performance = load_pickle(os.path.join(paths.PORTFOLIOS, 'testosperformance'))
+    values = [10, 50]
 
     # plot
     fig, axes = plt.subplots(nrows=3, ncols=3, figsize=(12, 9))
@@ -37,7 +41,6 @@ if __name__ == "__main__":
                 else:
                     x_data.append(point[0])
                     y_data.append(point[1])
-            values = [10, 15, 20, 25, 30, 35, 40, 45, 50]
             axes[row, col].scatter(x_data, y_data, c=values, cmap='Blues', label=f'robust {i}, incr. radius')
             axes[row, col].axhline(y=(1.1**22-1)*100, color='black', linestyle='--', label='Return constraint')
             axes[row, col].set_title(f'{i} {j}')

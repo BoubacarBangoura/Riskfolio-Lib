@@ -101,12 +101,14 @@ def mu_cov_prev_years(returns, t, years):
     return get_mu_sigma(cut_returns)
 
 
-def mu_mean_reversion(returns, t, years):
-    """ computes mu using previous years and the mean reversion assumption"""
-    mu_past, _ = mu_cov_prev_years(returns, t, years)
-    # use all previous data
-    mu_total, cov_total = get_mu_sigma(returns[returns.index < t])
-    return 2*mu_total - mu_past, cov_total
+def compute_mu_cov(returns, t, mean_reversion: bool, years):
+    if mean_reversion:
+        mu_past, _ = mu_cov_prev_years(returns, t, years)
+        # use all previous data
+        mu_total, cov_total = get_mu_sigma(returns[returns.index < t])
+        return 2 * mu_total - mu_past, cov_total
+    else:
+        return mu_cov_prev_years(returns, t, years)
 
 
 def yearly_perf(portfolio, returns):
