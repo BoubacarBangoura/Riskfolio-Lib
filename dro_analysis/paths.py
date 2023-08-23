@@ -6,6 +6,7 @@ import os
 HOME_PATH = os.path.expanduser('~')
 # replace PROJECT by your own project directory
 PROJECT = os.path.join(HOME_PATH, 'PycharmProjects', 'Riskfolio-Lib', 'dro_analysis')
+EXPERIMENTS = os.path.join(PROJECT, 'experiments')
 DATA = os.path.join(PROJECT, 'data')
 RAW_DATA = os.path.join(DATA, 'raw_data')
 CLEAN_DATA = os.path.join(DATA, 'clean_data')
