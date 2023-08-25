@@ -1664,6 +1664,7 @@ def Sharpe_Risk(
     b_sim=None,
     kappa=0.01,
     solver=None,
+    radius=0
 ):
     r"""
     Calculate the risk measure available on the Sharpe function.
@@ -1758,6 +1759,10 @@ def Sharpe_Risk(
     if rm == "MV":
         risk = w_.T @ cov_ @ w_
         risk = np.sqrt(risk.item())
+    elif rm == "robvariance":
+        risk = w_.T @ cov_ @ w_
+        risk = np.sqrt(risk.item())
+        risk = risk + (np.sqrt(radius)*np.linalg.norm(w_, ord=2)).item()
     elif rm == "MAD":
         risk = MAD(a)
     elif rm == "GMD":

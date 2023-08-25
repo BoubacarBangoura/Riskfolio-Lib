@@ -66,6 +66,7 @@ rm_names = [
     "Entropic Drawdown at Risk",
     "Relativistic Drawdown at Risk",
     "Ulcer Index",
+    "Robust (penalized) variance"
 ]
 
 rmeasures = [
@@ -93,6 +94,7 @@ rmeasures = [
     "EDaR",
     "RLDaR",
     "UCI",
+    "robvariance"
 ]
 
 
@@ -230,6 +232,7 @@ def plot_frontier(
     width=10,
     t_factor=252,
     ax=None,
+    radius=0
 ):
     r"""
     Creates a plot of the efficient frontier for a risk measure specified by
@@ -417,6 +420,8 @@ def plot_frontier(
         ax.set_ylabel("Expected Arithmetic Return")
     elif kelly == True:
         ax.set_ylabel("Expected Logarithmic Return")
+    elif kelly == "robmean":
+        ax.set_ylabel("Robust Expected Return")
 
     item = rmeasures.index(rm)
     if rm in ["CVaR", "TG", "EVaR", "RLVaR", "CVRG", "TGRG", "CDaR", "EDaR", "RLDaR"]:
@@ -453,10 +458,13 @@ def plot_frontier(
                 b_sim=b_sim,
                 kappa=kappa,
                 solver=solver,
+                radius=radius
             )
 
             if kelly == False:
                 ret = mu_ @ weights
+            elif kelly == 'robmean':
+                ret = mu_ @ weights - np.sqrt(radius)*np.linalg.norm(weights, ord=2)
             elif kelly == True:
                 ret = 1 / returns.shape[0] * np.sum(np.log(1 + returns @ weights))
             ret = ret.item() * t_factor
@@ -523,9 +531,12 @@ def plot_frontier(
                 b_sim=b_sim,
                 kappa=kappa,
                 solver=solver,
+                radius=radius
             )
             if kelly == False:
                 ret = mu_ @ weights
+            elif kelly == 'robmean':
+                ret = mu_ @ weights - np.sqrt(radius)*np.linalg.norm(weights, ord=2)
             elif kelly == True:
                 ret = 1 / returns.shape[0] * np.sum(np.log(1 + returns @ weights))
             ret = ret.item() * t_factor
@@ -570,6 +581,256 @@ def plot_frontier(
 
     return ax
 
+
+def plot_robust_frontier(
+    w_frontier,
+    w_frontier_rob,
+    mu,
+    cov=None,
+    returns=None,
+    test_returns=None,
+    rf=0,
+    kappa=0.30,
+    cmap="viridis",
+    w=None,
+    height=6,
+    width=10,
+    t_factor=252,
+    ax=None,
+    radius=0
+):
+    r"""
+    Creates a plot of the efficient frontier for a risk measure specified by
+    the user.
+
+    Parameters
+    ----------
+    w_frontier : DataFrame
+        Portfolio weights of some points in the efficient frontier.
+    mu : DataFrame of shape (1, n_assets)
+        Vector of expected returns, where n_assets is the number of assets.
+    cov : DataFrame of shape (n_features, n_features)
+        Covariance matrix, where n_features is the number of features.
+    returns : DataFrame of shape (n_samples, n_features)
+        Features matrix, where n_samples is the number of samples and
+        n_features is the number of features.
+    rm : str, optional
+        The risk measure used to estimate the frontier.
+        The default is 'MV'. Possible values are:
+
+        - 'MV': Standard Deviation.
+        - 'CVaR': Conditional Value at Risk.
+
+    kelly : bool, optional
+        Method used to calculate mean return. Possible values are False for
+        arithmetic mean return and True for mean logarithmic return. The default
+        is False.
+    kappa : float, optional
+        Deformation parameter of RLVaR and RLDaR, must be between 0 and 1. The default is 0.30.
+    cmap : cmap, optional
+        Colorscale that represents the risk adjusted return ratio.
+        The default is 'viridis'.
+    w : DataFrame of shape (n_assets, 1), optional
+        A portfolio specified by the user. The default is None.
+    label : str or list, optional
+        Name or list of names of portfolios that appear on plot legend.
+        The default is 'Portfolio'.
+    marker : str, optional
+        Marker of w. The default is "*".
+    s : float, optional
+        Size of marker. The default is 16.
+    c : str, optional
+        Color of marker. The default is 'r'.
+    height : float, optional
+        Height of the image in inches. The default is 6.
+    width : float, optional
+        Width of the image in inches. The default is 10.
+    t_factor : float, optional
+        Factor used to annualize expected return and expected risks for
+        risk measures based on returns (not drawdowns). The default is 252.
+
+        .. math::
+
+            \begin{align}
+            \text{Annualized Return} & = \text{Return} \, \times \, \text{t_factor} \\
+            \text{Annualized Risk} & = \text{Risk} \, \times \, \sqrt{\text{t_factor}}
+            \end{align}
+
+    ax : matplotlib axis, optional
+        If provided, plot on this axis. The default is None.
+
+    Raises
+    ------
+    ValueError
+        When the value cannot be calculated.
+
+    Returns
+    -------
+    ax : matplotlib Axes
+        Returns the Axes object with the plot for further tweaking.
+
+    Example
+    -------
+    ::
+
+        label = 'Max Risk Adjusted Return Portfolio'
+        mu = port.mu
+        cov = port.cov
+        returns = port.returns
+
+        ax = rp.plot_frontier(w_frontier=ws,
+                              mu=mu,
+                              cov=cov,
+                              returns=returns,
+                              rm=rm,
+                              rf=0,
+                              alpha=0.05,
+                              cmap='viridis',
+                              w=w1,
+                              label=label,
+                              marker='*',
+                              s=16,
+                              c='r',
+                              height=6,
+                              width=10,
+                              t_factor=252,
+                              ax=None)
+
+    .. image:: images/MSV_Frontier.png
+
+
+    """
+
+    if not isinstance(w_frontier, pd.DataFrame):
+        raise ValueError("w_frontier must be a DataFrame")
+
+    if not isinstance(mu, pd.DataFrame):
+        raise ValueError("mu must be a DataFrame")
+
+    if not isinstance(cov, pd.DataFrame):
+        raise ValueError("cov must be a DataFrame")
+
+    if not isinstance(returns, pd.DataFrame):
+        raise ValueError("returns must be a DataFrame")
+
+    if returns.shape[1] != w_frontier.shape[0]:
+        a1 = str(returns.shape)
+        a2 = str(w_frontier.shape)
+        raise ValueError("shapes " + a1 + " and " + a2 + " not aligned")
+
+    if w is not None:
+        if not isinstance(w, pd.DataFrame):
+            raise ValueError("w must be a DataFrame")
+
+        if w.shape[1] > 1 and w.shape[0] == 1:
+            w = w.T
+
+        if returns.shape[1] != w.shape[0]:
+            a1 = str(returns.shape)
+            a2 = str(w.shape)
+            raise ValueError("shapes " + a1 + " and " + a2 + " not aligned")
+
+    if ax is None:
+        fig = plt.gcf()
+        ax = fig.gca()
+        fig.set_figwidth(width)
+        fig.set_figheight(height)
+    else:
+        fig = ax.get_figure()
+
+    mu_ = np.array(mu, ndmin=2)
+
+    ax.set_ylabel("Predicted Return using Empirical or Robust")
+    ax.set_xlabel("Std Deviation tolerance ")
+    title = "Efficient Frontier Comparison"
+    ax.set_title(title)
+
+    X1, Y1, Z1, X2, Y2, Z2 = [], [], [], [], [], []
+
+    # for MV
+    for i in range(w_frontier.shape[1]):
+        try:
+            weights = np.array(w_frontier.iloc[:, i], ndmin=2).T
+            risk = rk.Sharpe_Risk(
+                weights,
+                cov=cov,
+                returns=returns,
+                rm='MV',
+                kappa=kappa,
+                radius=radius
+            )
+
+            ret = mu_ @ weights
+            ret = ret.item() * t_factor
+            risk = risk * t_factor**0.5
+            ratio = (ret - rf) / risk
+
+            X1.append(risk)
+            Y1.append(ret)
+            Z1.append(ratio)
+        except:
+            pass
+
+    ax1 = ax.scatter(X1, Y1, c=Z1, cmap=cmap)
+
+    # set dimension of MV (larger range)
+    xmin = np.min(X1) - np.abs(np.max(X1) - np.min(X1)) * 0.1
+    xmax = np.max(X1) + np.abs(np.max(X1) - np.min(X1)) * 0.1
+    ymin = np.min(Y1) - np.abs(np.max(Y1) - np.min(Y1)) * 0.1
+    ymax = np.max(Y1) + np.abs(np.max(Y1) - np.min(Y1)) * 0.1
+
+    ax.set_ylim(ymin, ymax)
+    ax.set_xlim(xmin, xmax)
+
+    ax.xaxis.set_major_locator(plt.AutoLocator())
+
+    # for robust
+    for i in range(w_frontier_rob.shape[1]):
+        try:
+            weights = np.array(w_frontier_rob.iloc[:, i], ndmin=2).T
+            risk = rk.Sharpe_Risk(
+                weights,
+                cov=cov,
+                returns=returns,
+                rm='robvariance',
+                kappa=kappa,
+                radius=radius
+            )
+
+            ret = mu_ @ weights - np.sqrt(radius)*np.linalg.norm(weights, ord=2)
+            ret = ret.item() * t_factor
+            risk = risk * t_factor**0.5
+            ratio = (ret - rf) / risk
+
+            X2.append(risk)
+            Y2.append(ret)
+            Z2.append(ratio)
+        except:
+            pass
+
+    ax1 = ax.scatter(X2, Y2, c=Z2, cmap=cmap)
+
+    ticks_loc = ax.get_yticks().tolist()
+    ax.set_yticks(ax.get_yticks().tolist())
+    ax.set_yticklabels(["{:.2%}".format(x) for x in ticks_loc])
+    ticks_loc = ax.get_xticks().tolist()
+    ax.set_xticks(ax.get_xticks().tolist())
+    ax.set_xticklabels(["{:.2%}".format(x) for x in ticks_loc])
+
+    ax.tick_params(axis="y", direction="in")
+    ax.tick_params(axis="x", direction="in")
+
+    ax.grid(linestyle=":")
+
+    colorbar = ax.figure.colorbar(ax1)
+    colorbar.set_label("Risk Adjusted Return Ratio")
+
+    try:
+        fig.tight_layout()
+    except:
+        pass
+
+    return ax
 
 def plot_pie(
     w,

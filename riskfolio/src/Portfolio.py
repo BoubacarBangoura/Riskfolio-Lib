@@ -158,6 +158,12 @@ class Portfolio(object):
     upperuci : float, optional
         Constraint on max level of ulcer index (UCI) of
         uncompounded cumulative returns. The default is None.
+    lowerrobret : float, optional
+    upperrobvariance : float, optional
+    upperrobmeandev : float, optional
+        mean return - std deviation utility
+    upperrobVaR : float, optional
+    upperrobCVaR : float, optional
 
     dist_assumptions : string, optional
         Structural assumptions on the distriibution of the returns,
@@ -3678,6 +3684,7 @@ class Portfolio(object):
         rf=0,
         solver=None,
         hist=True,
+        radius=0
     ):
         r"""
         Method that calculates several portfolios in the efficient frontier
@@ -3715,12 +3722,13 @@ class Portfolio(object):
             - 'EDaR': Entropic Drawdown at Risk of uncompounded cumulative returns.
             - 'RLDaR': Relativistic Drawdown at Risk of uncompounded cumulative returns.
             - 'UCI': Ulcer Index of uncompounded cumulative returns.
+            - 'robvariance'
 
         kelly : str, optional
             Method used to calculate mean return. Possible values are False for
             arithmetic mean return, "approx" for approximate mean logarithmic
             return using first and second moment and "exact" for mean logarithmic
-            return. The default is False.
+            return, 'robmean' for robust expected return. The default is False.
         points : scalar, optional
             Number of point calculated from the efficient frontier.
             The default is 50.
@@ -3814,6 +3822,9 @@ class Portfolio(object):
         if rm == "MV":
             risk_min = np.sqrt(w_min.T @ sigma @ w_min).item()
             risk_max = np.sqrt(w_max.T @ sigma @ w_max).item()
+        elif rm == "robvariance":
+            risk_min = np.sqrt(w_min.T @ sigma @ w_min).item() + (np.sqrt(radius)*np.linalg.norm(w_min, ord=2)).item()
+            risk_max = np.sqrt(w_max.T @ sigma @ w_max).item() + (np.sqrt(radius)*np.linalg.norm(w_max, ord=2)).item()
         elif rm == "KT":
             risk_min = rk.Kurtosis(returns @ w_min)
             risk_max = rk.Kurtosis(returns @ w_max)
@@ -3905,6 +3916,7 @@ class Portfolio(object):
             "upperEDaR",
             "upperRLDaR",
             "upperuci",
+            "upperrobvariance"
         ]
 
         risk_names = [
@@ -3930,10 +3942,12 @@ class Portfolio(object):
             "EDaR",
             "RLDaR",
             "UCI",
+            "robvariance"
         ]
 
         item = risk_names.index(rm)
 
+        # compute the portfolios for each risk level
         frontier = []
         n = 0
         for i in range(len(risks)):
@@ -3947,6 +3961,7 @@ class Portfolio(object):
                         rf=rf,
                         l=0,
                         hist=hist,
+                        radius=radius
                     )
                 else:
                     setattr(self, risk_lims[item], risks[i])
@@ -3958,6 +3973,7 @@ class Portfolio(object):
                         rf=rf,
                         l=0,
                         hist=hist,
+                        radius=radius
                     )
                 if w is not None:
                     n += 1
