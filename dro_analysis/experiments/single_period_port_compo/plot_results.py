@@ -160,12 +160,12 @@ def plot_weights(yearly_returns, test_times, radii_of_interest, portfolios, min_
 
 
 if __name__ == "__main__":
-    exp_to_analyze = 5
+    exp_to_analyze = 6
     if exp_to_analyze in [1, 3]:
         _min_ret = 0.05
     elif exp_to_analyze in [2, 4]:
         _min_ret = 0.1
-    elif exp_to_analyze == 5:
+    elif exp_to_analyze in [5, 6]:
         _min_ret = 0.06
 
     # get prices

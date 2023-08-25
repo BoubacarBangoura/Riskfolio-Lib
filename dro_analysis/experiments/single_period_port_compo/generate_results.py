@@ -38,7 +38,7 @@ def compute_portfolios(returns, test_start, strategy):
 
 
 if __name__ == "__main__":
-    experiment_name = 'exp_5'
+    experiment_name = 'exp_6'
     min_ret = 0.06
 
     # get prices

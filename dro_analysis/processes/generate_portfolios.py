@@ -58,8 +58,7 @@ if __name__ == "__main__":
 
     # get monthly and yearly returns
     monthly_returns = prices.pct_change().dropna()
-    yearly_returns = calendar_year_returns(prices)
-    yearly_returns = yearly_returns.drop(yearly_returns.index[0])
+    yearly_returns = prices.resample('Y').last().pct_change()
 
     # labels and parameters
     strategies = ['MV', 'utility', 'CVaR', 'Blanchet', 'robutility', 'robVaR', 'robCVaR']

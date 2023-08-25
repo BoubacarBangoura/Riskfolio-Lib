@@ -48,8 +48,7 @@ if __name__ == "__main__":
 
     # get monthly and yearly returns
     monthly_returns = prices.pct_change().dropna()
-    yearly_returns = calendar_year_returns(prices)
-    yearly_returns = yearly_returns.drop(yearly_returns.index[0])
+    yearly_returns = prices.resample('Y').last().pct_change()
 
     strategies = {'MV': MV, 'robMV': robMV, 'utility': utility, 'robutility': robutility, 'CVaR': CVaR, 'robCVaR': robCVaR, 'robVaR': robVaR}
     estimation_methods = {'prev_5_years': prev_5_years, 'prev_10_years': prev_10_years, 'mean_rev_5_years': mean_rev_5_years}
