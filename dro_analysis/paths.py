@@ -13,6 +13,8 @@ CLEAN_DATA = os.path.join(DATA, 'clean_data')
 MARKETS = os.path.join(DATA, 'markets')
 PORTFOLIOS = os.path.join(DATA, 'portfolios')
 
+PERFORMANCE_EVALUATION = os.path.join(EXPERIMENTS, 'performance_evaluation')
+
 
 # CLUSTER_DATA = os.path.join(HOME_PATH, 'DRO_optimal_nomination', 'Data')
 # CLUSTER_RESULTS = os.path.join(CLUSTER_DATA, 'Results')

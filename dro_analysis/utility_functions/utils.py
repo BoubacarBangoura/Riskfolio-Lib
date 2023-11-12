@@ -5,8 +5,7 @@ from collections import Counter
 import random
 
 from dro_analysis import paths
-
-import numpy as np
+import pandas as pd
 import scipy.stats as st
 import matplotlib.pyplot as plt
 
@@ -60,9 +59,12 @@ def save_pickle(what, where):
     file.close()
 
 
-def load_market(market_name: str, folder_path=paths.MARKETS):
-    return load_pickle(os.path.join(folder_path, market_name))
+def get_returns(years_30=False):
+    prices = pd.read_pickle(os.path.join(paths.CLEAN_DATA, 'PublicData2'))
+    if years_30:
+        prices = prices.loc[prices.index > pd.Timestamp(1990, 1, 30)]  # no need to cut, already done in functions
+    else:
+        prices = prices.loc[prices.index > pd.Timestamp(1973, 2, 2)]  # no need to cut, already done in functions
+    prices = prices.dropna(axis=1)
 
-
-def load_portfolio(portfolio_name: str, folder_path=paths.PORTFOLIOS):
-    return load_pickle(os.path.join(folder_path, portfolio_name))
+    return prices.pct_change()

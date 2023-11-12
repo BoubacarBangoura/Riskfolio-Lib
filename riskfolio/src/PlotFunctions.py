@@ -23,11 +23,13 @@ import riskfolio.src.RiskFunctions as rk
 import riskfolio.src.AuxFunctions as af
 import riskfolio.src.DBHT as db
 import riskfolio.src.GerberStatistic as gs
+import riskfolio.src.ParamsEstimation as pe
 
 
 __all__ = [
     "plot_series",
     "plot_frontier",
+    "plot_robust_frontier",
     "plot_pie",
     "plot_bar",
     "plot_frontier_area",
@@ -597,7 +599,8 @@ def plot_robust_frontier(
     width=10,
     t_factor=252,
     ax=None,
-    radius=0
+    radius=0,
+    realized= False
 ):
     r"""
     Creates a plot of the efficient frontier for a risk measure specified by
@@ -739,76 +742,120 @@ def plot_robust_frontier(
         fig = ax.get_figure()
 
     mu_ = np.array(mu, ndmin=2)
+    print(mu)
+    mu_real = pe.mean_vector(test_returns)
+    print(mu_real)
+    mu_real = np.array(mu_real, ndmin=2)
+    cov_real = pe.covar_matrix(test_returns)
+    print(mu_real)
 
     ax.set_ylabel("Predicted Return using Empirical or Robust")
     ax.set_xlabel("Std Deviation tolerance ")
-    title = "Efficient Frontier Comparison"
+    title = "Improving reliability of the EF via DRO"
     ax.set_title(title)
 
     X1, Y1, Z1, X2, Y2, Z2 = [], [], [], [], [], []
+    real_ret, real_risk, rob_real_ret, rob_real_risk = [], [], [], []
+    rob_X1, rob_Y1, rob_X2, rob_Y2 = [], [], [], []
 
     # for MV
     for i in range(w_frontier.shape[1]):
         try:
             weights = np.array(w_frontier.iloc[:, i], ndmin=2).T
-            risk = rk.Sharpe_Risk(
-                weights,
-                cov=cov,
-                returns=returns,
-                rm='MV',
-                kappa=kappa,
-                radius=radius
-            )
 
+            # on train data
+            risk = rk.Sharpe_Risk(weights, cov=cov, returns=returns, rm='MV', kappa=kappa, radius=radius)
             ret = mu_ @ weights
+
+            risk = risk * t_factor ** 0.5
             ret = ret.item() * t_factor
-            risk = risk * t_factor**0.5
             ratio = (ret - rf) / risk
 
             X1.append(risk)
             Y1.append(ret)
             Z1.append(ratio)
+
+            # on test data
+            observed_returns = np.dot(test_returns, weights)
+            # risk = observed_returns.std().item() * t_factor ** 0.5   # OLD VERSION
+            ret = observed_returns.mean()
+            # risk = rk.Sharpe_Risk(weights, cov=cov_real, returns=test_returns, rm='MV', kappa=kappa, radius=radius)
+            # ret = mu_real @ weights
+
+            ret = ret.item() * t_factor
+            real_risk.append(risk)
+            real_ret.append(ret)
+
+            # rob risk and return
+            risk = rk.Sharpe_Risk(weights, cov=cov, returns=returns, rm='robvariance', kappa=kappa, radius=radius)
+
+            ret = mu_ @ weights - np.sqrt(radius) * np.linalg.norm(weights, ord=2)
+            ret = ret.item() * t_factor
+            risk = risk * t_factor ** 0.5
+            rob_X1.append(risk)
+            rob_Y1.append(ret)
+
         except:
             pass
 
-    ax1 = ax.scatter(X1, Y1, c=Z1, cmap=cmap)
+    ax1 = ax.scatter(X1, Y1, c=Z1, cmap=cmap, label='MV on empirical')
 
     # set dimension of MV (larger range)
     xmin = np.min(X1) - np.abs(np.max(X1) - np.min(X1)) * 0.1
     xmax = np.max(X1) + np.abs(np.max(X1) - np.min(X1)) * 0.1
     ymin = np.min(Y1) - np.abs(np.max(Y1) - np.min(Y1)) * 0.1
     ymax = np.max(Y1) + np.abs(np.max(Y1) - np.min(Y1)) * 0.1
-
     ax.set_ylim(ymin, ymax)
     ax.set_xlim(xmin, xmax)
-
     ax.xaxis.set_major_locator(plt.AutoLocator())
 
     # for robust
     for i in range(w_frontier_rob.shape[1]):
         try:
             weights = np.array(w_frontier_rob.iloc[:, i], ndmin=2).T
-            risk = rk.Sharpe_Risk(
-                weights,
-                cov=cov,
-                returns=returns,
-                rm='robvariance',
-                kappa=kappa,
-                radius=radius
-            )
+
+            # on train data
+            risk = rk.Sharpe_Risk(weights, cov=cov, returns=returns, rm='MV', kappa=kappa, radius=radius)
+            ret = mu_ @ weights
+            risk = risk * t_factor ** 0.5
+            ret = ret.item() * t_factor
+            ratio = (ret - rf) / risk
+
+            X2.append(risk)
+            Y2.append(ret)
+            Z2.append(ratio)
+
+            # on test data
+            observed_returns = np.dot(test_returns, weights)
+            # risk = observed_returns.std().item() * t_factor ** 0.5   # OLD VERSION
+            ret = observed_returns.mean()
+            # risk = rk.Sharpe_Risk(weights, cov=cov_real, returns=test_returns, rm='MV', kappa=kappa, radius=radius)
+            # ret = mu_real @ weights
+
+            ret = ret.item() * t_factor
+            rob_real_risk.append(risk)
+            rob_real_ret.append(ret)
+
+            # rob
+            risk = rk.Sharpe_Risk(weights, cov=cov, returns=returns, rm='robvariance', kappa=kappa, radius=radius)
 
             ret = mu_ @ weights - np.sqrt(radius)*np.linalg.norm(weights, ord=2)
             ret = ret.item() * t_factor
             risk = risk * t_factor**0.5
             ratio = (ret - rf) / risk
 
-            X2.append(risk)
-            Y2.append(ret)
-            Z2.append(ratio)
+            rob_X2.append(risk)
+            rob_Y2.append(ret)
+
         except:
             pass
 
-    ax1 = ax.scatter(X2, Y2, c=Z2, cmap=cmap)
+    ax2 = ax.scatter(X2, Y2, c=Z2, cmap=cmap, marker='^', label=f'rob. r= {radius} on emp.')
+    if realized:
+        ax3 = ax.scatter(real_risk, real_ret, color='red', s=15, label='MV on test')
+        ax4 = ax.scatter(rob_real_risk, rob_real_ret, marker='^', s=15, color='red', label='rob on test')
+    ax5 = ax.scatter(rob_X1, rob_Y1, color='blue', s=15, label='MV on rob')
+    ax6 = ax.scatter(rob_X2, rob_Y2, marker='^', s=15, color='blue', label='rob on rob')
 
     ticks_loc = ax.get_yticks().tolist()
     ax.set_yticks(ax.get_yticks().tolist())
@@ -821,9 +868,10 @@ def plot_robust_frontier(
     ax.tick_params(axis="x", direction="in")
 
     ax.grid(linestyle=":")
+    ax.legend()
 
     colorbar = ax.figure.colorbar(ax1)
-    colorbar.set_label("Risk Adjusted Return Ratio")
+    colorbar.set_label("Risk Return Ratio")
 
     try:
         fig.tight_layout()
