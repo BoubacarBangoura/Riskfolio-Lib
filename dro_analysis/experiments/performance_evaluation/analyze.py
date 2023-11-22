@@ -40,10 +40,13 @@ def get_distr_ret(results_data, strategy, sample, radius, robust_pred):
             w = r['w_dro'][radius]
         elif strategy == 'dro_l':
             w = r['w_dro_l'][radius]
-        val = np.dot(w, r[f'mu_{sample}'])
-        if sample == 'train' and robust_pred:
-            val -= np.sqrt(radius)*np.linalg.norm(w)
-        rets.append(val)
+        if w is not None:
+            val = np.dot(w, r[f'mu_{sample}'])
+            if sample == 'train' and robust_pred:
+                val -= np.sqrt(radius) * np.linalg.norm(w)
+            if strategy == 'mv' and sample == 'train':
+                print(f'val: {val*52}')
+            rets.append(val)
 
     return rets
 
@@ -70,8 +73,9 @@ def get_distr_risk(results_data, strategy, radius, cov: pandas.DataFrame):
             w = r['w_dro'][radius]
         elif strategy == 'dro_l':
             w = r['w_dro_l'][radius]
-        val = np.sqrt(np.dot(w, np.dot(cov, w)))
-        risks.append(val)
+        if w is not None:
+            val = np.sqrt(np.dot(w, np.dot(cov, w)))
+            risks.append(val)
 
     return risks
 
@@ -266,7 +270,7 @@ def bar_plots(results, display, df, exp=None, tail_alpha=None):
 
     bar_width = 0.25
 
-    # mean
+    # bar mean
 
     ret_train = []
     ret_robtrain = []
@@ -274,9 +278,9 @@ def bar_plots(results, display, df, exp=None, tail_alpha=None):
     ret_labels = []
 
     for key, val in stats['means'].items():
-        ret_train.append(val[0])
-        ret_robtrain.append(val[1])
-        ret_test.append(val[2])
+        ret_train.append(val[0]*100)
+        ret_robtrain.append(val[1]*100)
+        ret_test.append(val[2]*100)
         ret_labels.append(key)
 
     x = np.arange(len(ret_labels))
@@ -287,7 +291,11 @@ def bar_plots(results, display, df, exp=None, tail_alpha=None):
     axs[0, 0].legend()
     axs[0, 0].set_ylabel('%')
 
-    # std
+    if exp is not None:
+        if exp['obj'] == 'MinRisk' and exp['target_yearly'] is not None:
+            axs[0, 0].axhline(y=exp['target_yearly'] * 100, linestyle='-', label='Target', linewidth=1.5, color='darkblue')
+
+    # bar std
 
     risk_sigma = []
     risk_std_train = []
@@ -295,9 +303,9 @@ def bar_plots(results, display, df, exp=None, tail_alpha=None):
     risk_labels = []
 
     for key, val in stats['stds'].items():
-        risk_sigma.append(val[0])
-        risk_std_train.append(val[1])
-        risk_std_test.append(val[2])
+        risk_sigma.append(val[0]*100)
+        risk_std_train.append(val[1]*100)
+        risk_std_test.append(val[2]*100)
         risk_labels.append(key)
 
     x = np.arange(len(risk_labels))
@@ -305,13 +313,10 @@ def bar_plots(results, display, df, exp=None, tail_alpha=None):
     axs[1, 0].bar(x + bar_width, risk_std_train, bar_width, label='train', color='lightcoral')
     axs[1, 0].bar(x + 2 * bar_width, risk_std_test, bar_width, label='test', color='red')
     if exp is None:
-        target_risk = np.sqrt(52) * df.std().mean()
-    elif exp['target_yearly'] is None:
-        target_risk = np.sqrt(52) * df.std().mean()
-    elif exp['target_yearly'] is not None:
-        target_risk = exp['target_yearly']
+        if exp['obj'] == 'MaxRet' and exp['target_yearly'] is not None:
+            target_risk = exp['target_yearly'] * 100
+            axs[1, 0].axhline(y=target_risk, linestyle='-', label='Target', linewidth=1.5, color='darkorange')
 
-    axs[1, 0].axhline(y=target_risk, linestyle='-', label='Target', linewidth=1.5, color='darkorange')
     axs[1, 0].set_xticks(x + bar_width, risk_labels)
     axs[1, 0].legend()
     axs[1, 0].set_ylabel('%')
@@ -323,10 +328,10 @@ def bar_plots(results, display, df, exp=None, tail_alpha=None):
     dist_test = []
     dist_labels = []
 
-    for key, val in stats['dist'].items():
-        dist_train.append(val[0])
-        dist_robtrain.append(val[1])
-        dist_test.append(val[2])
+    for key, val in stats['dist'].items():   # the *100 to have in percentage
+        dist_train.append(val[0]*100)
+        dist_robtrain.append(val[1]*100)
+        dist_test.append(val[2]*100)
         dist_labels.append(key)
 
     box_lists = [dist_train, dist_robtrain, dist_test]
@@ -353,14 +358,16 @@ def bar_plots(results, display, df, exp=None, tail_alpha=None):
     axs[1, 0].set_title('Standard deviation of returns on test')
     axs[1, 1].set_title('Boxplot just test')
 
-    axs[0, 1].set_ylabel('Frequency')
-    axs[1, 1].set_ylabel('Frequency')
+    axs[1, 1].set_xlabel('strategies')
 
-    axs[1, 1].set_xlabel('Annualized returns')
-    for i in [0, 1]:
-        for j in [0, 1]:
-            axs[i, j].grid()
-            axs[i, j].legend()
+    axs[0, 0].grid()
+    axs[0, 1].grid()
+    axs[1, 0].grid()
+    axs[1, 1].grid()
+
+    axs[0, 0].legend(loc='upper left')
+    axs[1, 0].legend(loc='upper right')
+
     fig.suptitle('')
     plt.show()
 
@@ -519,7 +526,7 @@ if __name__ == "__main__":
     # res = load_pickle(os.path.join(PERFORMANCE_EVALUATION, 'results', conf['output_name']))
     # target_risk = df.std().mean()
 
-    choice = 'exp_2'    # exp_1  ,  classic,  cvar,   cvar_2, cvar_3
+    choice = 'cvar'    # exp_1 - classic - cvar - cvar_2 - cvar_3 - max_ret - min_risk - min_risk_10 - exp_cvar_tg
 
     if choice == 'exp_2':
         conf = config.exp_2
@@ -557,7 +564,7 @@ if __name__ == "__main__":
         df = get_returns(conf['years_30'])
         res = load_pickle(os.path.join(PERFORMANCE_EVALUATION, 'results', conf['output_name']))
 
-        _display = config.display_15_bar
+        _display = config.bar_cvar
         bar_plots(res, _display, df, exp=conf)
         bar_plots(res, _display, df, exp=conf, tail_alpha=0.05)
 
@@ -572,6 +579,10 @@ if __name__ == "__main__":
         df = get_returns(conf['years_30'])
         res = load_pickle(os.path.join(PERFORMANCE_EVALUATION, 'results', conf['output_name']))
 
+        _display = config.bar_cvar_2
+        bar_plots(res, _display, df, exp=conf)
+        bar_plots(res, _display, df, exp=conf, tail_alpha=0.05)
+
         _display = config.display_violin_2
         plot_weights_dist(res, _display, exp=conf)
     elif choice == 'cvar_3':
@@ -579,6 +590,86 @@ if __name__ == "__main__":
         df = get_returns(conf['years_30'])
         res = load_pickle(os.path.join(PERFORMANCE_EVALUATION, 'results', conf['output_name']))
 
+        _display = config.bar_cvar_3
+        bar_plots(res, _display, df, exp=conf)
+        bar_plots(res, _display, df, exp=conf, tail_alpha=0.05)
+
         _display = config.display_violin_3
+        plot_weights_dist(res, _display, exp=conf)
+    elif choice == 'max_ret':
+        conf = config.exp_max_ret
+        df = get_returns(conf['years_30'])
+        res = load_pickle(os.path.join(PERFORMANCE_EVALUATION, 'results', conf['output_name']))
+
+        print('target risk:', round(100*df.std().mean()*np.sqrt(52), 2), ' %')
+
+        # for _display in [config.bar_max_ret, config.bar_l_max_ret]:
+        #     bar_plots(res, _display, df, exp=conf)
+        #     bar_plots(res, _display, df, exp=conf, tail_alpha=0.05)
+        #     # performance_per_draw(res, _display)
+
+        _display = config.violin_max_ret
+        plot_weights_dist(res, _display, exp=conf)
+
+        # for _display in [config.rets_max_ret, config.rets_l_max_ret]:
+        #     # returns_distribution(res, _display)
+        #     plot_left_tail(res, _display, alpha=0.05)
+
+        # _display = config.display_15_reli
+        # reliability_plot(res, _display, percentage=False)
+        # std_dev_distribution(res, _display, target_risk, df, nb_bins=150)
+        # ef(res, _display, df, target_risk)
+    elif choice == 'min_risk':
+        conf = config.exp_min_risk
+        df = get_returns(conf['years_30'])
+        res = load_pickle(os.path.join(PERFORMANCE_EVALUATION, 'results', conf['output_name']))
+
+        for _display in [config.bar_min_risk, config.bar_l_min_risk]:
+            bar_plots(res, _display, df, exp=conf)
+            bar_plots(res, _display, df, exp=conf, tail_alpha=0.05)
+            # performance_per_draw(res, _display)
+
+        # for _display in [config.rets_min_risk, config.rets_l_min_risk]:
+        #     # returns_distribution(res, _display)
+        #     plot_left_tail(res, _display, alpha=0.05)
+
+        for _display in [config.violin_min_risk, config.violin_l_min_risk]:
+            plot_weights_dist(res, _display, exp=conf)
+
+        # _display = config.display_15_reli
+        # reliability_plot(res, _display, percentage=False)
+        # std_dev_distribution(res, _display, target_risk, df, nb_bins=150)
+        # ef(res, _display, df, target_risk)
+    elif choice == 'min_risk_10':
+        conf = config.exp_min_risk_10
+        df = get_returns(conf['years_30'])
+        res = load_pickle(os.path.join(PERFORMANCE_EVALUATION, 'results', conf['output_name']))
+
+        for _display in [config.bar_min_risk, config.bar_l_min_risk]:
+            bar_plots(res, _display, df, exp=conf)
+            bar_plots(res, _display, df, exp=conf, tail_alpha=0.05)
+            # performance_per_draw(res, _display)
+
+        # for _display in [config.rets_min_risk, config.rets_l_min_risk]:
+        #     # returns_distribution(res, _display)
+        #     plot_left_tail(res, _display, alpha=0.05)
+
+        for _display in [config.violin_min_risk, config.violin_l_min_risk]:
+            plot_weights_dist(res, _display, exp=conf)
+
+        # _display = config.display_15_reli
+        # reliability_plot(res, _display, percentage=False)
+        # std_dev_distribution(res, _display, target_risk, df, nb_bins=150)
+        # ef(res, _display, df, target_risk)
+    elif choice == 'exp_cvar_tg':
+        conf = config.exp_cvar_tg
+        df = get_returns(conf['years_30'])
+        res = load_pickle(os.path.join(PERFORMANCE_EVALUATION, 'results', conf['output_name']))
+
+        for _display in [config.bar_cvar_tg, config.bar_l_cvar_tg]:
+            bar_plots(res, _display, df, exp=conf)
+            bar_plots(res, _display, df, exp=conf, tail_alpha=0.05)
+
+        _display = config.display_violin_cvar_tg
         plot_weights_dist(res, _display, exp=conf)
 

@@ -25,7 +25,7 @@ def compute_w(df_returns, cov, target, obj, rm, kelly=False, radius=0):
             elif rm == 'robCVaR':
                 p.upperrobCVaR = target  # TODO:  !!!!! target has to be modified differently !!!!!
         elif obj == 'MinRisk':
-            target /= np.sqrt(52)
+            target /= 52
             if kelly == False:
                 p.lowerret = target
             elif kelly == 'robmean':
@@ -34,7 +34,10 @@ def compute_w(df_returns, cov, target, obj, rm, kelly=False, radius=0):
     p.cov = cov
     p.optimization(model='Classic', rm=rm, obj=obj, kelly=kelly, hist=True, radius=radius)
 
-    return p.optimal['weights']
+    try:
+        return p.optimal['weights']
+    except:
+        return None
 
 
 def compute_w_dro(df_returns, cov, target_risk, radius):
@@ -152,7 +155,7 @@ def generate_all_periods(df, test_size, train_size, cov, target, radii: list, ob
         # make train/test
         df_train = df[t <= df.index] # TODO: check time spread
         df_train = df_train[df_train.index < t + pd.DateOffset(weeks= train_size * 52)]
-        df_test = df[t + pd.DateOffset(weeks= train_size * 52) <= df.index ]
+        df_test = df[t + pd.DateOffset(weeks=train_size * 52) <= df.index ]
         df_test = df_test[df_test.index < t + pd.DateOffset(weeks= (test_size+train_size) * 52)]
 
         # # define portfolio class
@@ -208,6 +211,7 @@ def generate_boostrap(df, sample_size, train_window, test_window, cov, target, r
 
     """
     results = []
+    skipped = 0
     for i in range(sample_size):
         print(f' --- {i + 1} / {sample_size}')
 
@@ -234,17 +238,24 @@ def generate_boostrap(df, sample_size, train_window, test_window, cov, target, r
         for radius in radii:
             if risk_measure == 'std':
                 w_dro[radius] = compute_w(df_train, cov, target, obj=obj, rm='robvariance', kelly='robmean', radius=radius)
-                w_dro_l[radius] = compute_w(df_train, cov, target, obj=obj, rm='MV', kelly='robmean', radius=radius)
+                if obj == 'MaxRet':
+                    w_dro_l[radius] = compute_w(df_train, cov, target, obj=obj, rm='MV', kelly='robmean', radius=radius)
+                elif obj == 'MinRisk':
+                    w_dro_l[radius] = compute_w(df_train, cov, target, obj=obj, rm='robvariance', kelly=False, radius=radius)
             if risk_measure == 'CVaR':
                 w_dro[radius] = compute_w(df_train, cov, target, obj=obj, rm='robCVaR', kelly='robmean', radius=radius)
-                w_dro_l[radius] = compute_w(df_train, cov, target, obj=obj, rm='robCVaR', kelly=False, radius=radius)
+                if obj == 'MaxRet':
+                    w_dro_l[radius] = compute_w(df_train, cov, target, obj=obj, rm='CVaR', kelly='robmean', radius=radius)
+                elif obj == 'MinRisk':
+                    w_dro_l[radius] = compute_w(df_train, cov, target, obj=obj, rm='robCVaR', kelly=False,
+                                                radius=radius)
         mu_train = df_train.mean()
         mu_test = df_test.mean()
         results.append({'w_mv': w, 'w_dro': w_dro, 'w_dro_l': w_dro_l, 'mu_train': mu_train, 'mu_test': mu_test, 'train_start': t})
     return results
 
 
-def generate_all_periods_test(df, test_size, target_risk, radii, obje, rm):
+def generate_all_periods_test(df, test_size, target_risk, radii, obj, rm):
     results = []
     last = df.index[-1] - pd.DateOffset(weeks=test_size * 52)
     times = df[df.index <= last].index
@@ -303,5 +314,5 @@ def generate(years_30, radii, output_name, method, sample_size, test_years, trai
 
 
 if __name__ == "__main__":
-    exp = config.exp_total
-    generate(**exp)
+    for exp in [config.exp_min_risk_10]:
+        generate(**exp)
