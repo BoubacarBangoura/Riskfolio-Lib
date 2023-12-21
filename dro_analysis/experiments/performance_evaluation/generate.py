@@ -81,7 +81,7 @@ def generate_rolling(df, test_size, train_size, cov, target, radii, obj, risk_me
 
     times = []
     t = df.index[0]
-    while t in df.index:
+    while t in df.index:  # t at end of train+test
         times.append(t)
         t += pd.DateOffset(weeks=train_size * 52)
 
@@ -131,12 +131,14 @@ def generate_rolling(df, test_size, train_size, cov, target, radii, obj, risk_me
 
 def generate_all_periods(df, test_size, train_size, cov, target, radii: list, obj, risk_measure):
     """
+    For every time t take the train and test, crossings.
+
 
     Parameters
     ----------
     df
-    test_size
-    train_size
+    test_size: int, years
+    train_size: int
     cov:
     target_risk
     radii: list of radii
@@ -153,7 +155,7 @@ def generate_all_periods(df, test_size, train_size, cov, target, radii: list, ob
         print(f' --- {i+1} / {times.size}')
 
         # make train/test
-        df_train = df[t <= df.index] # TODO: check time spread
+        df_train = df[t <= df.index]  # TODO: check time spread
         df_train = df_train[df_train.index < t + pd.DateOffset(weeks= train_size * 52)]
         df_test = df[t + pd.DateOffset(weeks=train_size * 52) <= df.index ]
         df_test = df_test[df_test.index < t + pd.DateOffset(weeks= (test_size+train_size) * 52)]
@@ -256,6 +258,21 @@ def generate_boostrap(df, sample_size, train_window, test_window, cov, target, r
 
 
 def generate_all_periods_test(df, test_size, target_risk, radii, obj, rm):
+    """
+    Train on everything, test for every t.
+    Parameters
+    ----------
+    df
+    test_size
+    target_risk
+    radii
+    obj
+    rm
+
+    Returns
+    -------
+
+    """
     results = []
     last = df.index[-1] - pd.DateOffset(weeks=test_size * 52)
     times = df[df.index <= last].index
@@ -280,11 +297,12 @@ def generate_all_periods_test(df, test_size, target_risk, radii, obj, rm):
     return results
 
 
-def generate(years_30, radii, output_name, method, sample_size, test_years, train_years, target_yearly=None, obj='MaxRet', risk_measure='std'):
+def generate(save_folder, years_30, radii, output_name, method, sample_size, test_years, train_years, target_yearly=None, obj='MaxRet', risk_measure='std'):
     """
 
     Parameters
     ----------
+    save_folder: str, name of folder to save to
     sample_size
     years_30: bool, True if start at 1990, False for 1973
     radii: list of radii
@@ -310,9 +328,38 @@ def generate(years_30, radii, output_name, method, sample_size, test_years, trai
     elif method == 'all_periods_test':
         res = generate_all_periods_test(df, test_size=test_years, target_risk=target, radii=radii, obj=obj, risk_measure=risk_measure)
 
-    save_pickle(res, os.path.join(PERFORMANCE_EVALUATION, 'results', output_name))
+    save_pickle(res, os.path.join(PERFORMANCE_EVALUATION, save_folder, output_name))
 
 
 if __name__ == "__main__":
-    for exp in [config.exp_min_risk_10]:
-        generate(**exp)
+    # for exp in [config.exp_min_risk_10]:
+    #     generate(**exp)
+
+
+    count = 0
+    for tgV in [0.075, 0.05, 0.1]:
+        for train_y in [1, 2, 3]:  # , 5, 10]:
+            if train_y >= 5:
+                list_test = [1, 2]
+            else:
+                list_test = [1]
+            for test_y in list_test:
+                for method in ['rolling', 'all_periods']:
+                    count += 1
+                    print('---------------------------------------------------------')
+                    print('---------------------------------------------------------')
+                    print(f'----------------     {count} / 45      -----------------')
+                    print('---------------------------------------------------------')
+                    print('---------------------------------------------------------')
+                    exp = {'years_30': False,
+                                   'radii': [5e-5, 1e-5, 5e-6, 1e-6, 5e-7],
+                                   'output_name': f'tgV_{tgV}_{train_y}+{test_y}_{method}',
+                                   'method': method,
+                                   'sample_size': 100,
+                                   'test_years': test_y,
+                                   'train_years': train_y,
+                                   'target_yearly': tgV,
+                                   'obj': 'MaxRet',
+                                   'risk_measure': 'std'}
+
+                    generate('delta_consistency', **exp)

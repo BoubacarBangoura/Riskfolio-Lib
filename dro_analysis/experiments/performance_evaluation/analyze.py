@@ -1,7 +1,7 @@
 import os
 import random
 
-import pandas
+import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib import cm, colors
 import numpy as np
@@ -14,6 +14,7 @@ import dro_analysis.experiments.performance_evaluation.config as config
 from dro_analysis.utility_functions.distributions import make_discrete_dist, kde, pareto, gaussian
 
 color = {0: 'blue', 1: 'red', 2: 'darkorange', 3: 'orange', 4: 'yellow', 5: 'pink', 6: 'green', 7:  'magenta', 8: 'black'}
+
 
 def get_distr_ret(results_data, strategy, sample, radius, robust_pred):
     """
@@ -51,7 +52,51 @@ def get_distr_ret(results_data, strategy, sample, radius, robust_pred):
     return rets
 
 
-def get_distr_risk(results_data, strategy, radius, cov: pandas.DataFrame):
+def get_distr_std(results_data, strategy, sample, radius, train_size, test_size, years_30):
+    """
+
+    Parameters
+    ----------
+    results: str
+    strategy: 'mv', 'dro', 'dro_l'
+    sample: 'test' or 'train'
+    radius: float
+    robust: True for robust return, False otherwise
+
+    sample = 'train' + radius for robust prediction
+
+    Returns
+    -------
+
+    """
+    std = []
+    count = 0
+    for r in results_data:
+        count += 1
+        print(count)
+        if strategy == 'mv':
+            w = r['w_mv']
+        elif strategy == 'dro':
+            w = r['w_dro'][radius]
+        elif strategy == 'dro_l':
+            w = r['w_dro_l'][radius]
+        if w is not None:
+            # ----------------- new block -------------
+            # get df test returns
+            df = get_returns(years_30=years_30)
+            t = r['train_start']
+            df_test = df[t + pd.DateOffset(weeks=train_size * 52) <= df.index]
+            df_test = df_test[df_test.index < t + pd.DateOffset(weeks=(test_size + train_size) * 52)]
+            test_returns = np.dot(w, df_test.T)
+
+            # take std
+            std.append(np.std(test_returns))
+            # -----------------------------------------
+
+    return std
+
+
+def get_distr_risk(results_data, strategy, radius, cov: pd.DataFrame):
     """
 
         Parameters
@@ -519,6 +564,339 @@ def ef(results, display, df, target_risk):
     plt.show()
 
 
+def make_list_from_res():
+    """
+    take the results and make a dictionary with list of mean, std and label for each experiement (train/test/method)
+    Returns
+    -------
+
+    """
+    for dro in ['dro', 'dro_l']:
+        for tgV in [0.075, 0.05, 0.1]:
+            for method in ['all_periods']:  # 'rolling',
+                # one plot
+                # fig, axs = plt.subplots(2, 4, sharex=True, sharey=True)
+
+                k = 0
+                for train_y in [1, 2, 3, 5, 10]:
+                    if train_y >= 5:
+                        list_test = [1, 2]
+                    else:
+                        list_test = [1]
+                    for test_y in list_test:
+                        exp = {'years_30': False,
+                               'radii': [5e-7, 1e-6, 5e-6, 1e-5, 5e-5],
+                               'output_name': f'tgV_{tgV}_{train_y}+{test_y}_{method}',
+                               'method': method,
+                               'sample_size': 100,
+                               'test_years': test_y,
+                               'train_years': train_y,
+                               'target_yearly': tgV,
+                               'obj': 'MaxRet',
+                               'risk_measure': 'std'}
+
+                        results = load_pickle(
+                            os.path.join(PERFORMANCE_EVALUATION, 'delta_consistency', exp['output_name']))
+
+                        list_means, list_stds, list_labels, list_nb_data = [], [], [], []
+
+                        rets = get_distr_ret(results, strategy='mv', sample='test', radius=5e-5, robust_pred=False)
+                        rets = [val * 52 for val in rets]
+                        rets = [val for val in rets if not np.isnan(val)]  # remove nans
+
+                        stds = get_distr_std(results, strategy='mv', sample='test', radius=5e-5, train_size=train_y,
+                                             test_size=test_y, years_30=False)
+                        stds = [val * 52**0.5 for val in stds]
+                        stds = [val for val in stds if not np.isnan(val)]  # remove nans
+
+                        list_nb_data.append(len(rets))
+                        list_means.append(np.mean(rets) * 100)
+                        list_stds.append(np.mean(stds) * 100)
+                        list_labels.append('mv')
+                        for rad in exp['radii']:
+                            rets = get_distr_ret(results, strategy=dro, sample='test', radius=rad, robust_pred=False)
+                            rets = [val * 52 for val in rets]
+                            rets = [val for val in rets if not np.isnan(val)]  # remove nans
+
+                            stds = get_distr_std(results, strategy=dro, sample='test', radius=rad, train_size=train_y,
+                                                 test_size=test_y, years_30=False)
+                            stds = [val * 52**0.5 for val in stds]
+                            stds = [val for val in stds if not np.isnan(val)]  # remove nans
+
+                            list_nb_data.append(len(rets))
+                            list_means.append(np.mean(rets)*100)
+                            list_stds.append(np.mean(stds)*100)   # TODO: update
+                            list_labels.append(f'{rad}')
+
+                        dict_res = {'means': list_means, 'stds': list_stds, 'labels': list_labels, 'nb_data': list_nb_data}
+                        save_pickle(dict_res, os.path.join(PERFORMANCE_EVALUATION, 'delta_consistency',
+                                                           f'DICT_{dro}_tgV_{tgV}_{train_y}+{test_y}_{method}'))
+
+
+def check_wSw():
+    """
+    check that
+    -------
+
+    """
+    df = get_returns(years_30=False)
+    cov = df.cov()
+
+    for tgV in [0.075, 0.05, 0.1]:
+        target = tgV / np.sqrt(52)
+        print(f' -----------------------------   tg {tgV}   --------------------------')
+        for method in ['all_periods']:  # 'rolling',
+            # one plot
+            # fig, axs = plt.subplots(2, 4, sharex=True, sharey=True)
+
+            k = 0
+            for train_y in [1, 2, 3, 5, 10]:
+                # input('pause')
+                if train_y >= 5:
+                    list_test = [1, 2]
+                else:
+                    list_test = [1]
+                for test_y in list_test:
+                    exp = {'years_30': False,
+                           'radii': [5e-7, 1e-6, 5e-6, 1e-5, 5e-5],
+                           'output_name': f'tgV_{tgV}_{train_y}+{test_y}_{method}',
+                           'method': method,
+                           'sample_size': 100,
+                           'test_years': test_y,
+                           'train_years': train_y,
+                           'target_yearly': tgV,
+                           'obj': 'MaxRet',
+                           'risk_measure': 'std'}
+
+                    results = load_pickle(
+                        os.path.join(PERFORMANCE_EVALUATION, 'delta_consistency', exp['output_name']))
+
+                    count = 0
+                    for r in results:
+                        # count += 1
+                        # print(count)
+
+                        # w = r['w_mv']
+                        # if isinstance(w, pd.Series):
+                        #     val = np.dot(w, np.dot(cov, w)) ** 0.5
+                        #     if val > target + 1e-6:
+                        #         print(f' -- MV: {val * 52**0.5} -- ')
+
+                        for radius in exp['radii']:
+                            # w = r['w_dro'][radius]
+                            # if isinstance(w, pd.Series):
+                            #     val = np.dot(w, np.dot(cov, w))**0.5 + np.sqrt(radius) * np.linalg.norm(w, 2)
+                            #     if val > target + 1e-6:
+                            #         print(f' -- DRO: {val * 52**0.5} -- ')
+                            #
+                            w = r['w_dro_l'][radius]
+                            if isinstance(w, pd.Series):
+                                val = np.dot(w, np.dot(cov, w))**0.5
+                                if val > target + 1e-6:
+                                    print(f' -- DRO l: {val * 52**0.5} -- ')
+
+
+def delta_choice_analysis():
+    for method in ['all_periods', 'rolling']:
+        for tgV in [0.05, 0.075, 0.1]:
+            for dro in ['dro_l']:  # 'dro',
+                # one plot
+                fig, axs = plt.subplots(2, 4, sharex=True, sharey=True)
+
+                k = 0
+                for train_y in [1, 2, 3, 5, 10]:
+                    if train_y >= 5:
+                        list_test = [1, 2]
+                    else:
+                        list_test = [1]
+                    for test_y in list_test:
+                        exp = {'years_30': False,
+                                       'radii': [5e-7, 1e-6, 5e-6, 1e-5, 5e-5],
+                                       'output_name': f'tgV_{tgV}_{train_y}+{test_y}_{method}',
+                                       'method': method,
+                                       'sample_size': 100,
+                                       'test_years': test_y,
+                                       'train_years': train_y,
+                                       'target_yearly': tgV,
+                                       'obj': 'MaxRet',
+                                       'risk_measure': 'std'}
+
+                        dict_res = load_pickle(
+                            os.path.join(PERFORMANCE_EVALUATION, 'delta_consistency', f'DICT_{dro}_tgV_{tgV}_{train_y}+{test_y}_{method}'))
+                        list_means = dict_res['means']
+                        list_stds = dict_res['stds']
+                        list_labels = dict_res['labels']
+                        list_nb_data = dict_res['nb_data']
+
+                        bar_width = 0.3
+                        if k < 4:
+                            i = 0
+                        else:
+                            i = 1
+                        j = k%4
+                        x = np.arange(len(list_labels))
+                        axs[i, j].bar(x, list_means, bar_width, label='mean', color='blue')
+                        axs[i, j].bar(x + bar_width, list_stds, bar_width, label='std', color='red')
+                        axs[i, j].axhline(y=tgV * 100, linestyle='--', label='Target', linewidth=1.5, color='darkorange')
+                        axs[i, j].set_xticks(x + bar_width, list_labels)
+                        axs[i, j].legend()
+                        axs[i, j].set_ylabel('%')
+                        title = f'Train: {train_y} y   Test: {test_y} y  '
+                        if all(x == list_nb_data[0] for x in list_nb_data):
+                            title += f'\nnb data : {list_nb_data[0]}'
+                        else:
+                            title += f'\nnb data :{list_nb_data[:3]} \n           {list_nb_data[3:]}'
+                        axs[i, j].set_title(title)
+                        axs[i, j].grid()
+
+                        k += 1
+
+                title = f'PROBLEM: maximize return        STD TARGET: {tgV*100} %        METHOD: '
+                if method == 'rolling':
+                    title += 'disjoint sets'
+                else:
+                    title += 'rolling window'
+                title += '          ROBUSTNESS: '
+                if dro == 'dro_l':
+                    title += 'only return'
+                else:
+                    title += 'both risk and return'
+                fig.text(0.5, 0.03, 'increasing radius', ha='center', va='center')
+                fig.suptitle(title, fontweight='bold')
+                fig.subplots_adjust(hspace=0.35)
+                plt.show()
+
+def make_list_from_res_extreme():
+    """
+    take the results and make a dictionary with list of mean, std and label for each experiement (train/test/method)
+    Returns
+    -------
+
+    """
+    for dro in ['dro', 'dro_l']:
+        for tgV in [0.075, 0.1]:
+            for method in ['all_periods']:
+                # one plot
+                # fig, axs = plt.subplots(2, 4, sharex=True, sharey=True)
+
+                k = 0
+                for train_y in [1, 2, 3, 5, 10]:
+                    if train_y >= 5:
+                        list_test = [1, 2]
+                    else:
+                        list_test = [1]
+                    for test_y in list_test:
+                        exp = {'years_30': False,
+                               'radii': [5e-4, 1e-4, 1e-7, 1e-8],
+                               'output_name': f'XTRM_tgV_{tgV}_{train_y}+{test_y}_{method}',
+                               'method': method,
+                               'sample_size': 100,
+                               'test_years': test_y,
+                               'train_years': train_y,
+                               'target_yearly': tgV,
+                               'obj': 'MaxRet',
+                               'risk_measure': 'std'}
+
+                        results = load_pickle(
+                            os.path.join(PERFORMANCE_EVALUATION, 'delta_consistency', exp['output_name']))
+
+                        list_means, list_stds, list_labels, list_nb_data = [], [], [], []
+
+                        rets = get_distr_ret(results, strategy='mv', sample='test', radius=5e-5, robust_pred=False)
+                        rets = [val * 52 for val in rets]
+                        rets = [val for val in rets if not np.isnan(val)]  # remove nans
+
+                        stds = get_distr_std(results, strategy='mv', sample='test', radius=5e-5, train_size=train_y, test_size=test_y)  # Todo: UPDATED
+
+                        list_nb_data.append(len(rets))
+                        list_means.append(np.mean(rets) * 100)
+                        list_stds.append(np.mean(stds) * 100)  # TODO: updateD
+                        list_labels.append('mv')
+                        for rad in exp['radii']:
+                            rets = get_distr_ret(results, strategy=dro, sample='test', radius=rad, robust_pred=False)
+                            rets = [val * 52 for val in rets]
+                            rets = [val for val in rets if not np.isnan(val)]  # remove nans
+                            list_nb_data.append(len(rets))
+                            list_means.append(np.mean(rets)*100)
+                            list_stds.append(np.std(rets)*100)
+                            list_labels.append(f'{rad}')
+
+                        dict_res = {'means': list_means, 'stds': list_stds, 'labels': list_labels, 'nb_data': list_nb_data}
+                        save_pickle(dict_res, os.path.join(PERFORMANCE_EVALUATION, 'delta_consistency',
+                                                           f'DICT_XTRM_{dro}_tgV_{tgV}_{train_y}+{test_y}_{method}'))
+
+
+def delta_choice_analysis_extreme():
+    for method in ['all_periods']:
+        for tgV in [0.075, 0.1]:
+            for dro in ['dro', 'dro_l']:
+                # one plot
+                fig, axs = plt.subplots(2, 4, sharex=True, sharey=True)
+
+                k = 0
+                for train_y in [1, 2, 3, 5, 10]:
+                    if train_y >= 5:
+                        list_test = [1, 2]
+                    else:
+                        list_test = [1]
+                    for test_y in list_test:
+                        exp = {'years_30': False,
+                                       'radii': [5e-4, 1e-4, 1e-7, 1e-8],
+                                       'output_name': f'XTRM_tgV_{tgV}_{train_y}+{test_y}_{method}',
+                                       'method': method,
+                                       'sample_size': 100,
+                                       'test_years': test_y,
+                                       'train_years': train_y,
+                                       'target_yearly': tgV,
+                                       'obj': 'MaxRet',
+                                       'risk_measure': 'std'}
+
+                        dict_res = load_pickle(
+                            os.path.join(PERFORMANCE_EVALUATION, 'delta_consistency', f'DICT_XTRM_{dro}_tgV_{tgV}_{train_y}+{test_y}_{method}'))
+                        list_means = dict_res['means']
+                        list_stds = dict_res['stds']
+                        list_labels = dict_res['labels']
+                        list_nb_data = dict_res['nb_data']
+
+                        bar_width = 0.3
+                        if k < 4:
+                            i = 0
+                        else:
+                            i = 1
+                        j = k%4
+                        x = np.arange(len(list_labels))
+                        axs[i, j].bar(x, list_means, bar_width, label='mean', color='blue')
+                        axs[i, j].bar(x + bar_width, list_stds, bar_width, label='std', color='red')
+                        axs[i, j].axhline(y=tgV * 100, linestyle='--', label='Target', linewidth=1.5, color='darkorange')
+                        axs[i, j].set_xticks(x + bar_width, list_labels)
+                        axs[i, j].legend()
+                        axs[i, j].set_ylabel('%')
+                        title = f'Train: {train_y} y   Test: {test_y} y  '
+                        if all(x == list_nb_data[0] for x in list_nb_data):
+                            title += f'\nnb data : {list_nb_data[0]}'
+                        else:
+                            title += f'\nnb data :{list_nb_data[:3]} \n           {list_nb_data[3:]}'
+                        axs[i, j].set_title(title)
+                        axs[i, j].grid()
+
+                        k += 1
+
+                title = f'PROBLEM: maximize return        STD TARGET: {tgV*100} %        METHOD: '
+                if method == 'rolling':
+                    title += 'disjoint sets'
+                else:
+                    title += 'rolling window'
+                title += '          ROBUSTNESS: '
+                if dro == 'dro_l':
+                    title += 'only return'
+                else:
+                    title += 'both risk and return'
+                fig.text(0.5, 0.03, 'increasing radius', ha='center', va='center')
+                fig.suptitle(title, fontweight='bold')
+                fig.subplots_adjust(hspace=0.35)
+                plt.show()
+
+
 if __name__ == "__main__":
 
     # conf = config.exp_TEST_cvar
@@ -526,7 +904,7 @@ if __name__ == "__main__":
     # res = load_pickle(os.path.join(PERFORMANCE_EVALUATION, 'results', conf['output_name']))
     # target_risk = df.std().mean()
 
-    choice = 'cvar'    # exp_1 - classic - cvar - cvar_2 - cvar_3 - max_ret - min_risk - min_risk_10 - exp_cvar_tg
+    choice = 'min_risk_10'    # exp_1 - classic - cvar - cvar_2 - cvar_3 - max_ret - min_risk - min_risk_10 - exp_cvar_tg
 
     if choice == 'exp_2':
         conf = config.exp_2
@@ -673,3 +1051,11 @@ if __name__ == "__main__":
         _display = config.display_violin_cvar_tg
         plot_weights_dist(res, _display, exp=conf)
 
+    elif choice == 'delta_choice_analysis':
+        # make_list_from_res()
+        delta_choice_analysis()
+
+        # check_wSw()
+
+        # make_list_from_res_extreme()
+        # delta_choice_analysis_extreme()
